@@ -20,8 +20,9 @@ import redis.asyncio as async_redis
 import torch
 from tokenizers import Tokenizer
 
-from chameleon.inference.vocab import VocabInfo
 from chameleon.inference.image_tokenizer import ImageTokenizer
+from chameleon.inference.loader import load_model
+from chameleon.inference.vocab import VocabInfo
 from chameleon.viewer.backend.data_types import WSMessageType
 from chameleon.viewer.backend.models.abstract_model import (
     DEFAULT_IMAGE_CFG_IMAGE,
@@ -32,9 +33,11 @@ from chameleon.viewer.backend.models.abstract_model import (
     MixedSequenceType,
     StreamingImage,
 )
-from chameleon.viewer.backend.models.chameleon_local import ChameleonForwardMixin, ChameleonTokenizationMixin
+from chameleon.viewer.backend.models.chameleon_local import (
+    ChameleonForwardMixin,
+    ChameleonTokenizationMixin,
+)
 from chameleon.viewer.backend.utils import get_logger
-from chameleon.inference.loader import load_model
 
 logger = get_logger(__name__)
 
@@ -313,10 +316,11 @@ def distributed_workers(
     master_port: str,
     world_size: int,
     rank: int,
+    redis_host: str,
     redis_port: int,
     worker_queues: dict[int, multiprocessing.Queue],
 ) -> None:
-    redis_client = redis.Redis("redis", redis_port)
+    redis_client = redis.Redis(redis_host, redis_port)
     request_queue = RedisQueue(redis_client, "request")
     response_queue = RedisQueue(redis_client, "response")
 
@@ -519,6 +523,7 @@ class ChameleonDistributedGenerator(AbstractMultimodalGenerator, ChameleonTokeni
         vqgan_ckpt_path: str | None = None,
         master_address: str = "0.0.0.0",
         additional_eos_tokens: list[str] | None = None,
+        redis_host: str = "redis",
         redis_port: int | None = None,
     ) -> None:
         self.master_port = master_port
@@ -531,9 +536,10 @@ class ChameleonDistributedGenerator(AbstractMultimodalGenerator, ChameleonTokeni
 
         logger.info("Loading VQGAN...")
         self.image_tokenizer = ImageTokenizer(vqgan_config_path, vqgan_ckpt_path)
+        self.redis_host = redis_host
         self.redis_port = redis_port
         self.redis_pool = async_redis.ConnectionPool.from_url(
-            f"redis://redis:{redis_port}"
+            f"redis://{redis_host}:{redis_port}"
         )
         self.redis_client = async_redis.Redis.from_pool(self.redis_pool)
         self.request_queue = AsyncRedisQueue(self.redis_client, "request")
@@ -559,6 +565,7 @@ class ChameleonDistributedGenerator(AbstractMultimodalGenerator, ChameleonTokeni
                     master_port,
                     world_size,
                     i,
+                    self.redis_host,
                     self.redis_port,
                     self.worker_queues,
                 ),

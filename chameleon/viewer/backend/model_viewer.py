@@ -3,17 +3,17 @@
 # This source code is licensed under the Chameleon License found in the
 # LICENSE file in the root directory of this source tree.
 
-from pathlib import Path
-
 import hydra
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
-from chameleon.viewer.backend.models.service import serve
-from chameleon.viewer.backend.models.chameleon_distributed import ChameleonDistributedGenerator
-from chameleon.viewer.backend.models.chameleon_local import ChameleonLocalGenerator
-from chameleon.viewer.backend.utils import configure_rich_logging, get_logger
 from chameleon.inference import loader
+from chameleon.viewer.backend.models.chameleon_distributed import (
+    ChameleonDistributedGenerator,
+)
+from chameleon.viewer.backend.models.chameleon_local import ChameleonLocalGenerator
+from chameleon.viewer.backend.models.service import serve
+from chameleon.viewer.backend.utils import configure_rich_logging, get_logger
 
 logger = get_logger(__name__)
 
@@ -34,7 +34,8 @@ def create_chameleon_generator(cfg: DictConfig):
             world_size=world_size,
             master_address=cfg.distributed.master_address,
             master_port=cfg.distributed.master_port,
-            redis_port=cfg.redis_port,
+            redis_host=cfg.redis.host,
+            redis_port=cfg.redis.port,
         )
     else:
         generator = ChameleonLocalGenerator(
@@ -58,7 +59,8 @@ def main(cfg: DictConfig) -> None:
         cfg.host,
         cfg.port,
         debug=cfg.debug,
-        redis_port=cfg.redis_port,
+        redis_host=cfg.redis.host,
+        redis_port=cfg.redis.port,
     )
 
 
